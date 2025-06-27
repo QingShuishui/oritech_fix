@@ -5,8 +5,12 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.registry.RegistryWrapper;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 import net.minecraft.util.Pair;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
 import net.minecraft.world.World;
 import org.apache.commons.lang3.time.StopWatch;
@@ -126,28 +130,53 @@ public class ItemPipeInterfaceEntity extends ExtractablePipeInterfaceEntity {
                 
                 var toMove = stackToMove.getCount();
                 var moved = 0;
-                
+
+                // 1.ti qu
+                var actualExtracted = moveFromInventory.extract(stackToMove, false);
+
+                if (actualExtracted <= 0) {
+                    // error?
+                    Oritech.LOGGER.error("CRITICAL: Detected item duplication attempt at position {}. Destroying pipe and notifying nearby players.", pos);
+
+                    // break
+                    world.breakBlock(pos, true);
+
+                    // 32 rangve
+                    notifyNearbyPlayersOfViolation(pos, world);
+
+                    return;
+                }
+
+                // update
+                var actualStackToMove = stackToMove.copyWithCount(actualExtracted);
+                toMove = actualExtracted;
+
                 for (var storagePair : filteredTargetItemStorages) {
                     if (storagePair.getLeft().equals(moveFromInventory))
                         continue;    // skip when targeting same machine
-                    
+
                     var targetStorage = storagePair.getLeft();
                     var wasEmptyStorage = IntStream.range(0, targetStorage.getSlotCount()).allMatch(slot -> targetStorage.getStackInSlot(slot).isEmpty());
-                    
-                    var inserted = targetStorage.insert(stackToMove, false);
+
+                    // safe
+                    var inserted = targetStorage.insert(actualStackToMove.copyWithCount(toMove), false);
                     toMove -= inserted;
                     moved += inserted;
-                    
+
                     if (inserted > 0) {
-                        onItemMoved(this.pos, takenFrom, storagePair.getRight(), data.pipeNetworks.getOrDefault(data.pipeNetworkLinks.getOrDefault(this.pos, 0), new HashSet<>()), world, stackToMove.getItem(), inserted, wasEmptyStorage);
+                        onItemMoved(this.pos, takenFrom, storagePair.getRight(), data.pipeNetworks.getOrDefault(data.pipeNetworkLinks.getOrDefault(this.pos, 0), new HashSet<>()), world, actualStackToMove.getItem(), inserted, wasEmptyStorage);
                     }
-                    
+
                     if (toMove <= 0) break;  // target has been found for all items
                 }
-                var extracted = moveFromInventory.extract(stackToMove.copyWithCount(moved), false);
-                
-                if (extracted != moved) {
-                    Oritech.LOGGER.warn("Invalid state while transferring inventory. Caused at position {}", pos);
+
+                // error
+                if (toMove > 0) {
+                    var returnStack = actualStackToMove.copyWithCount(toMove);
+                    var returned = moveFromInventory.insert(returnStack, false);
+                    if (returned < toMove) {
+                        Oritech.LOGGER.warn("Unable to return {} items to source inventory at position {}. Items may be lost.", toMove - returned, takenFrom);
+                    }
                 }
                 
                 // only move one slot content
@@ -306,5 +335,37 @@ public class ItemPipeInterfaceEntity extends ExtractablePipeInterfaceEntity {
     }
     
     public record RenderStackData(ItemStack rendered, List<BlockPos> path, Long startedAt, int pathLength) {
+    }
+
+    /**
+     * @param violationPos x y z
+     * @param world worldname
+     */
+    private void notifyNearbyPlayersOfViolation(BlockPos violationPos, World world) {
+        if (world.isClient) return;
+
+        // 32range
+        var notificationRange = 32.0;
+        var box = new Box(
+            violationPos.getX() - notificationRange, violationPos.getY() - notificationRange, violationPos.getZ() - notificationRange,
+            violationPos.getX() + notificationRange, violationPos.getY() + notificationRange, violationPos.getZ() + notificationRange
+        );
+
+        // player
+        var nearbyPlayers = world.getEntitiesByClass(ServerPlayerEntity.class, box, player -> !player.isSpectator());
+
+        // baogao
+        for (var player : nearbyPlayers) {
+            // xiaoxi
+            var warningMessage = Text.literal("§c§l检测到物品传输异常！?坐标: " +
+                violationPos.getX() + ", " + violationPos.getY() + ", " + violationPos.getZ());
+
+            player.sendMessage(warningMessage, true); // true表示发送到ActionBar
+
+            // backup
+            var chatMessage = Text.literal("§4本次已记录，禁止使用该BUG");
+
+            player.sendMessage(chatMessage, false); // false表示发送到聊天框
+        }
     }
 }
