@@ -32,7 +32,6 @@ import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
-import net.minecraft.util.Formatting;
 import net.minecraft.util.Hand;
 import net.minecraft.util.Pair;
 import net.minecraft.util.TypedActionResult;
@@ -351,7 +350,11 @@ public class PortableLaserItem extends Item implements OritechEnergyItem, GeoIte
                         // 破坏成功，重置统计
                         blockBreakStats.put(player, new Pair<>(BlockPos.ORIGIN, 0));
                     } else {
-                        // 破坏失败（权限问题），更新统计但不重置
+                        // 破坏失败（权限问题），显示MinePixel格式的消息并播放提示音
+                        player.sendMessage(Text.literal("[MinePixel]您没有权限破坏此处").formatted(Formatting.RED), true);
+                        world.playSound(null, blockPos, SoundEvents.BLOCK_NOTE_BLOCK_BASS.value(), SoundCategory.PLAYERS, 1.0f, 0.5f);
+
+                        // 更新统计但不重置
                         blockBreakStats.put(player, stats);
                     }
                 } else {
@@ -365,7 +368,11 @@ public class PortableLaserItem extends Item implements OritechEnergyItem, GeoIte
                         // 破坏成功，重置统计
                         blockBreakStats.put(player, new Pair<>(BlockPos.ORIGIN, 0));
                     } else {
-                        // 破坏失败（权限问题），更新统计但不重置
+                        // 破坏失败（权限问题），显示MinePixel格式的消息并播放提示音
+                        player.sendMessage(Text.literal("[MinePixel]您没有权限破坏此处").formatted(Formatting.RED), true);
+                        world.playSound(null, blockPos, SoundEvents.BLOCK_NOTE_BLOCK_BASS.value(), SoundCategory.PLAYERS, 1.0f, 0.5f);
+
+                        // 更新统计但不重置
                         blockBreakStats.put(player, stats);
                     }
                 }
