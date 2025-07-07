@@ -14,6 +14,7 @@ import rearth.oritech.init.BlockContent;
 import rearth.oritech.init.BlockEntitiesContent;
 import rearth.oritech.init.TagContent;
 import rearth.oritech.network.NetworkContent;
+import rearth.oritech.util.ChunkProtectionHelper;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,7 +52,12 @@ public class BlackHoleBlockEntity extends BlockEntity implements BlockEntityTick
         for (var candidate : BlockPos.iterateOutwards(pos, pullRange, pullRange, pullRange)) {
             var candidateState = world.getBlockState(candidate);
             if (candidate.equals(pos) || candidateState.isAir() || candidateState.getFluidState().isStill() || candidateState.getBlock().equals(Blocks.MOVING_PISTON) || candidateState.getBlock().equals(BlockContent.BLACK_HOLE_BLOCK)) continue;
-            
+
+            // 检查区块保护权限
+            if (!ChunkProtectionHelper.canMachineBreakBlock(world, candidate, pos, "Black Hole")) {
+                continue; // 跳过受保护的方块
+            }
+
             currentlyPullingFrom = candidate;
             currentlyPulling = candidateState;
             pullingStartedAt = world.getTime();
