@@ -3,7 +3,6 @@ package rearth.oritech.fabric;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.entity.event.v1.EntityElytraEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
-import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.minecraft.entity.EquipmentSlot;
 import rearth.oritech.Oritech;
 import rearth.oritech.api.energy.EnergyApi;
@@ -12,7 +11,6 @@ import rearth.oritech.api.item.ItemApi;
 import rearth.oritech.item.tools.armor.JetpackElytraItem;
 import rearth.oritech.item.tools.armor.JetpackExoElytraItem;
 import rearth.oritech.item.tools.util.ArmorEventHandler;
-import rearth.oritech.event.ChunkProtectionEventHandler;
 
 public final class OritechFabricMod implements ModInitializer {
     @Override
@@ -45,13 +43,8 @@ public final class OritechFabricMod implements ModInitializer {
             } else if (chestStack.getItem() instanceof JetpackExoElytraItem jetpackElytraItem) {
                 return jetpackElytraItem.useCustomElytra(entity, chestStack, tickElytra);
             }
-
+            
             return false;
         }));
-
-        // 注册方块破坏事件监听器
-        PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) -> {
-            return ChunkProtectionEventHandler.onBlockBreak(world, pos, player);
-        });
     }
 }

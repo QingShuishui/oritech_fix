@@ -21,14 +21,17 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.projectile.ProjectileUtil;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.item.tooltip.TooltipType;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Hand;
 import net.minecraft.util.Pair;
@@ -55,7 +58,6 @@ import rearth.oritech.init.TagContent;
 import rearth.oritech.item.tools.util.OritechEnergyItem;
 import rearth.oritech.util.AutoPlayingSoundKeyframeHandler;
 import rearth.oritech.util.TooltipHelper;
-import rearth.oritech.util.ChunkProtectionHelper;
 import software.bernie.geckolib.animatable.GeoItem;
 import software.bernie.geckolib.animatable.SingletonGeoAnimatable;
 import software.bernie.geckolib.animatable.client.GeoRenderProvider;
@@ -232,25 +234,36 @@ public class PortableLaserItem extends Item implements OritechEnergyItem, GeoIte
         // skip unbreakable blocks
         if (blockState.getHardness(world, blockPos) < 0) return;
 
-        // 检查区块保护权限
-        if (!ChunkProtectionHelper.canBreakBlock(world, blockPos, player)) {
-            ChunkProtectionHelper.sendPermissionDeniedMessage(player, blockPos);
+        // 使用模拟玩家破坏方块的方式，让Minecraft原生权限系统处理
+        if (world instanceof ServerWorld serverWorld && player instanceof ServerPlayerEntity serverPlayer) {
+            simulatePlayerBlockBreaking(serverWorld, blockPos, blockState, serverPlayer, tool, energyUsed);
             return;
         }
-        
+
+    }
+
+    /**
+     * 使用原生权限检查的方块破坏逻辑
+     * 保持原来的掉落物处理，但使用Minecraft原生权限系统
+     */
+    private static void simulatePlayerBlockBreaking(ServerWorld world, BlockPos blockPos, BlockState blockState, ServerPlayerEntity player, ItemStack laserTool, int energyUsed) {
+
+        // 使用能量消耗来模拟破坏进度
         var stats = blockBreakStats.getOrDefault(player, new Pair<>(BlockPos.ORIGIN, 0));
         if (!blockPos.equals(stats.getLeft())) {
             stats = new Pair<>(blockPos, energyUsed);
         } else {
             stats = new Pair<>(blockPos, stats.getRight() + energyUsed);
         }
-        
+
+        // 处理激光加速方块
         if (blockState.isIn(TagContent.LASER_ACCELERATED)) {
-            blockState.randomTick((ServerWorld) world, blockPos, world.random);
+            blockState.randomTick(world, blockPos, world.random);
             ParticleContent.ACCELERATING.spawn(world, Vec3d.of(blockPos));
-            stats = new Pair<>(blockPos, -1);
+            stats = new Pair<>(blockPos, -1); // 立即破坏
         }
-        
+
+        // 处理能量方块（给它们充能而不是破坏）
         var blockEntity = world.getBlockEntity(blockPos);
         if (blockEntity instanceof MachineCoreEntity coreBlock && coreBlock.isEnabled()) {
             blockEntity = (BlockEntity) coreBlock.getCachedController();
@@ -260,64 +273,155 @@ public class PortableLaserItem extends Item implements OritechEnergyItem, GeoIte
             if (storageCandidate == null && blockEntity instanceof EnergyApi.BlockProvider provider) {
                 storageCandidate = provider.getEnergyStorage(null);
             }
-            
+
             if (storageCandidate instanceof DynamicEnergyStorage dynamicStorage) {
                 var inserted = dynamicStorage.insertIgnoringLimit(energyUsed, false);
-                if (inserted > 0)
+                if (inserted > 0) {
                     dynamicStorage.update();
-                
+                    blockBreakStats.put(player, new Pair<>(BlockPos.ORIGIN, 0)); // 重置统计
+                }
                 return;
             } else if (storageCandidate != null) {
                 var inserted = storageCandidate.insert(energyUsed, false);
-                if (inserted > 0)
+                if (inserted > 0) {
                     storageCandidate.update();
-                
+                    blockBreakStats.put(player, new Pair<>(BlockPos.ORIGIN, 0)); // 重置统计
+                }
                 return;
             }
         }
-        
+
+        // 计算破坏所需的能量
         var currentInvestedEnergy = stats.getRight();
         var requiredBreakingEnergy = (int) (Math.sqrt(blockState.getHardness(world, blockPos)) * BLOCK_BREAK_ENERGY / Oritech.CONFIG.portableLaserConfig.blockBreakSpeed());
-        var efficiencyLevel = getEnchantmentLevel(tool, Enchantments.EFFICIENCY);
+        var efficiencyLevel = getEnchantmentLevel(laserTool, Enchantments.EFFICIENCY);
         if (efficiencyLevel > 0) requiredBreakingEnergy = requiredBreakingEnergy / (efficiencyLevel + 1);
+
+        // 如果能量足够，使用钻石镐破坏逻辑但掉落物进入背包
         if (currentInvestedEnergy > requiredBreakingEnergy) {
-            stats = new Pair<>(blockPos, 0);
-            finishBlockBreaking(blockPos, blockState, world, player, tool);
+            // 创建一个临时的钻石镐，用于模拟破坏
+            ItemStack diamondPickaxe = new ItemStack(Items.DIAMOND_PICKAXE);
+
+            // 将激光枪的附魔转移到钻石镐上
+            var enchantments = laserTool.getEnchantments();
+            diamondPickaxe.set(DataComponentTypes.ENCHANTMENTS, enchantments);
+
+            // 使用ServerPlayerInteractionManager来破坏方块，这会触发所有正确的权限检查
+            var interactionManager = player.interactionManager;
+
+            // 临时替换玩家的主手物品为钻石镐
+            var originalMainHand = player.getMainHandStack();
+            player.getInventory().setStack(player.getInventory().selectedSlot, diamondPickaxe);
+
+            // 预先计算掉落物（在破坏之前）
+            var targetEntity = world.getBlockEntity(blockPos);
+            List<ItemStack> dropped;
+
+            // 检查是否有激光臂特殊配方
+            var blockRecipe = LaserArmBlockEntity.tryGetRecipeOfBlock(blockState, world);
+            if (blockRecipe != null) {
+                var recipe = blockRecipe.value();
+                var farmedCount = 1;
+                dropped = List.of(new ItemStack(recipe.getResults().get(0).getItem(), farmedCount));
+                ParticleContent.CHARGING.spawn(world, Vec3d.of(blockPos), 1);
+            } else {
+                // 使用钻石镐的附魔来计算掉落物
+                dropped = Block.getDroppedStacks(blockState, world, blockPos, targetEntity, player, diamondPickaxe);
+            }
+
+            try {
+                // 使用更精确的方法：先阻止默认掉落，然后使用钻石镐逻辑计算掉落物
+
+                // 检查是否有LaserArm特殊配方（优先级最高）
+                if (blockRecipe != null) {
+                    // 使用特殊配方，但仍然需要钻石镐的权限检查
+                    boolean success = interactionManager.tryBreakBlock(blockPos);
+
+                    if (success) {
+                        // 清理默认掉落物（如果有的话）
+                        collectAndRemoveDroppedItems(world, blockPos);
+
+                        // 添加特殊掉落物到背包
+                        for (var stack : dropped) {
+                            if (!player.getInventory().insertStack(stack)) {
+                                world.spawnEntity(new ItemEntity(world, blockPos.toCenterPos().x, blockPos.toCenterPos().y, blockPos.toCenterPos().z, stack));
+                            }
+                        }
+
+                        // 破坏成功，重置统计
+                        blockBreakStats.put(player, new Pair<>(BlockPos.ORIGIN, 0));
+                    } else {
+                        // 破坏失败（权限问题），更新统计但不重置
+                        blockBreakStats.put(player, stats);
+                    }
+                } else {
+                    // 使用标准钻石镐破坏逻辑
+                    boolean success = interactionManager.tryBreakBlock(blockPos);
+
+                    if (success) {
+                        // 收集掉落物到背包
+                        collectDroppedItems(world, blockPos, player);
+
+                        // 破坏成功，重置统计
+                        blockBreakStats.put(player, new Pair<>(BlockPos.ORIGIN, 0));
+                    } else {
+                        // 破坏失败（权限问题），更新统计但不重置
+                        blockBreakStats.put(player, stats);
+                    }
+                }
+
+            } finally {
+                // 恢复玩家的原始主手物品
+                player.getInventory().setStack(player.getInventory().selectedSlot, originalMainHand);
+            }
+        } else {
+            // 能量不足，更新统计
+            blockBreakStats.put(player, stats);
         }
-        
-        blockBreakStats.put(player, stats);
     }
-    
-    private static void finishBlockBreaking(BlockPos targetPos, BlockState targetBlockState, World world, PlayerEntity player, ItemStack tool) {
-        
-        var targetEntity = world.getBlockEntity(targetPos);
-        List<ItemStack> dropped;
-        dropped = Block.getDroppedStacks(targetBlockState, (ServerWorld) world, targetPos, targetEntity, player, tool);
-        
-        var blockRecipe = LaserArmBlockEntity.tryGetRecipeOfBlock(targetBlockState, world);
-        if (blockRecipe != null) {
-            var recipe = blockRecipe.value();
-            var farmedCount = 1;
-            dropped = List.of(new ItemStack(recipe.getResults().get(0).getItem(), farmedCount));
-            ParticleContent.CHARGING.spawn(world, Vec3d.of(targetPos), 1);
+
+    /**
+     * 收集方块破坏后掉落的物品并将它们放入玩家背包
+     */
+    private static void collectDroppedItems(ServerWorld world, BlockPos blockPos, ServerPlayerEntity player) {
+        // 搜索方块周围的掉落物品
+        var searchBox = net.minecraft.util.math.Box.of(Vec3d.of(blockPos), 2.0, 2.0, 2.0);
+        var droppedItems = world.getEntitiesByClass(ItemEntity.class, searchBox, entity -> {
+            // 只收集刚刚掉落的物品（年龄小于20tick）
+            return entity.age < 20;
+        });
+
+        for (var itemEntity : droppedItems) {
+            var stack = itemEntity.getStack();
+
+            // 尝试将物品放入玩家背包
+            if (player.getInventory().insertStack(stack)) {
+                // 成功放入背包，移除地面上的物品
+                itemEntity.discard();
+            }
+            // 如果背包满了，物品会保留在地面上
         }
-        
-        // add stack to player inv, or spawn at block pos
-        for (var stack : dropped) {
-            if (!player.getInventory().insertStack(stack))
-                world.spawnEntity(new ItemEntity(world, targetPos.toCenterPos().x, targetPos.toCenterPos().y, targetPos.toCenterPos().z, stack));
-        }
-        
-        try {
-            targetBlockState.getBlock().onBreak(world, targetPos, targetBlockState, player);
-        } catch (Exception exception) {
-            Oritech.LOGGER.warn("Laser arm block break event failure when breaking " + targetBlockState + " at " + targetPos + ": " + exception.getLocalizedMessage());
-        }
-        world.addBlockBreakParticles(targetPos, world.getBlockState(targetPos));
-        world.playSound(null, targetPos, targetBlockState.getSoundGroup().getBreakSound(), SoundCategory.BLOCKS, 1f, 1f);
-        world.breakBlock(targetPos, false);
     }
-    
+
+    /**
+     * 收集并移除掉落物品（用于特殊配方情况）
+     */
+    private static void collectAndRemoveDroppedItems(ServerWorld world, BlockPos blockPos) {
+        // 搜索方块周围的掉落物品
+        var searchBox = net.minecraft.util.math.Box.of(Vec3d.of(blockPos), 2.0, 2.0, 2.0);
+        var droppedItems = world.getEntitiesByClass(ItemEntity.class, searchBox, entity -> {
+            // 只收集刚刚掉落的物品（年龄小于20tick）
+            return entity.age < 20;
+        });
+
+        // 移除所有默认掉落物，因为我们要使用特殊配方的掉落物
+        for (var itemEntity : droppedItems) {
+            itemEntity.discard();
+        }
+    }
+
+
+
     private static void processEntityTarget(PlayerEntity player, LivingEntity target, int damage, ItemStack tool, World world) {
         
         // make creepers charged

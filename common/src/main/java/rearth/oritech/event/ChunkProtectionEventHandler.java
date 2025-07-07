@@ -57,9 +57,7 @@ public class ChunkProtectionEventHandler {
             itemName.contains("axe") ||
             itemName.contains("chainsaw") ||
             itemName.contains("shovel") ||
-            itemName.contains("hoe") ||
-            itemName.contains("drill") ||
-            itemName.contains("weed_killer")
+            itemName.contains("hoe")
         );
     }
     

@@ -23,14 +23,17 @@ public class ChunkProtectionHelper {
      */
     public static boolean canBreakBlock(World world, BlockPos pos, PlayerEntity player) {
         if (world.isClient()) return true;
-        
+
+        // 注意：Enderic Railgun现在使用Minecraft原生权限系统
+        // 这个方法主要用于其他Oritech工具和机器
+
         try {
-            // 尝试使用FTBChunks API检查权限
-            return checkFTBChunksPermission(world, pos, player);
+            // 使用Minecraft原生权限检查
+            return world.canPlayerModifyAt(player, pos);
         } catch (Exception e) {
-            // 如果FTBChunks不存在或出错，记录警告但允许操作
-            Oritech.LOGGER.warn("Failed to check chunk protection at {}: {}", pos, e.getMessage());
-            return true;
+            // 如果检查失败，采用保守策略
+            Oritech.LOGGER.warn("Permission check failed at {}: {}", pos, e.getMessage());
+            return false;
         }
     }
     
@@ -45,85 +48,24 @@ public class ChunkProtectionHelper {
      */
     public static boolean canMachineBreakBlock(World world, BlockPos pos, BlockPos machinePos, String machineName) {
         if (world.isClient()) return true;
-        
-        try {
-            // 尝试使用FTBChunks API检查机器权限
-            boolean canBreak = checkFTBChunksMachinePermission(world, pos, machinePos);
-            
-            if (!canBreak) {
-                Oritech.LOGGER.info("Oritech {} at {} was blocked from breaking block at {} due to chunk protection", 
-                    machineName, machinePos, pos);
-            }
-            
-            return canBreak;
-        } catch (Exception e) {
-            // 如果FTBChunks不存在或出错，记录警告但允许操作
-            Oritech.LOGGER.warn("Failed to check chunk protection for {} at {}: {}", machineName, pos, e.getMessage());
+
+        // 简化的机器权限检查：只允许在同一区块内操作
+        int machineChunkX = machinePos.getX() >> 4;
+        int machineChunkZ = machinePos.getZ() >> 4;
+        int targetChunkX = pos.getX() >> 4;
+        int targetChunkZ = pos.getZ() >> 4;
+
+        if (machineChunkX == targetChunkX && machineChunkZ == targetChunkZ) {
+            // 同一区块内，允许操作
             return true;
+        } else {
+            // 跨区块操作，拒绝
+            Oritech.LOGGER.info("Machine {} at {} denied cross-chunk operation to {}", machineName, machinePos, pos);
+            return false;
         }
     }
-    
-    /**
-     * 使用反射检查FTBChunks权限
-     */
-    private static boolean checkFTBChunksPermission(World world, BlockPos pos, PlayerEntity player) {
-        try {
-            // 尝试加载FTBChunks的API类
-            Class<?> ftbChunksAPI = Class.forName("dev.ftb.mods.ftbchunks.api.FTBChunksAPI");
-            Class<?> claimResult = Class.forName("dev.ftb.mods.ftbchunks.api.ClaimResult");
-            
-            // 获取API实例
-            Object apiInstance = ftbChunksAPI.getMethod("api").invoke(null);
-            
-            // 检查权限：canPlayerBreakBlock(ServerWorld world, BlockPos pos, ServerPlayerEntity player)
-            Object result = apiInstance.getClass()
-                .getMethod("canPlayerBreakBlock", ServerWorld.class, BlockPos.class, ServerPlayerEntity.class)
-                .invoke(apiInstance, world, pos, player);
-            
-            // 检查结果是否为SUCCESS
-            Object successValue = claimResult.getField("SUCCESS").get(null);
-            return result.equals(successValue);
-            
-        } catch (ClassNotFoundException e) {
-            // FTBChunks未安装，允许操作
-            return true;
-        } catch (Exception e) {
-            // 其他错误，记录但允许操作
-            Oritech.LOGGER.debug("Error checking FTBChunks permission: {}", e.getMessage());
-            return true;
-        }
-    }
-    
-    /**
-     * 检查机器在FTBChunks中的权限
-     */
-    private static boolean checkFTBChunksMachinePermission(World world, BlockPos pos, BlockPos machinePos) {
-        try {
-            // 尝试加载FTBChunks的API类
-            Class<?> ftbChunksAPI = Class.forName("dev.ftb.mods.ftbchunks.api.FTBChunksAPI");
-            Class<?> claimResult = Class.forName("dev.ftb.mods.ftbchunks.api.ClaimResult");
-            
-            // 获取API实例
-            Object apiInstance = ftbChunksAPI.getMethod("api").invoke(null);
-            
-            // 检查权限：canFakePlayerBreakBlock(ServerWorld world, BlockPos pos, BlockPos sourcePos)
-            Object result = apiInstance.getClass()
-                .getMethod("canFakePlayerBreakBlock", ServerWorld.class, BlockPos.class, BlockPos.class)
-                .invoke(apiInstance, world, pos, machinePos);
-            
-            // 检查结果是否为SUCCESS
-            Object successValue = claimResult.getField("SUCCESS").get(null);
-            return result.equals(successValue);
-            
-        } catch (ClassNotFoundException e) {
-            // FTBChunks未安装，允许操作
-            return true;
-        } catch (Exception e) {
-            // 其他错误，记录但允许操作
-            Oritech.LOGGER.debug("Error checking FTBChunks machine permission: {}", e.getMessage());
-            return true;
-        }
-    }
+
+
     
     /**
      * 检查是否安装了FTBChunks

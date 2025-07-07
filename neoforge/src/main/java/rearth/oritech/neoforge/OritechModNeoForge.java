@@ -13,7 +13,6 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 import net.neoforged.neoforge.event.entity.living.LivingEquipmentChangeEvent;
-import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.neoforge.registries.RegisterEvent;
@@ -23,7 +22,6 @@ import rearth.oritech.api.energy.EnergyApi;
 import rearth.oritech.api.fluid.FluidApi;
 import rearth.oritech.api.item.ItemApi;
 import rearth.oritech.item.tools.util.ArmorEventHandler;
-import rearth.oritech.event.ChunkProtectionEventHandler;
 
 @Mod(Oritech.MOD_ID)
 public final class OritechModNeoForge {
@@ -57,18 +55,10 @@ public final class OritechModNeoForge {
     // No idea why this needs to be another class, but oh well.
     @EventBusSubscriber(modid = Oritech.MOD_ID)
     static class CustomEvents {
-
+        
         @SubscribeEvent
         public static void onEquipmentChanged(LivingEquipmentChangeEvent event) {
             ArmorEventHandler.processEvent(event.getEntity(), event.getSlot(), event.getFrom(), event.getTo());
-        }
-
-        @SubscribeEvent
-        public static void onBlockBreak(BlockEvent.BreakEvent event) {
-            boolean canBreak = ChunkProtectionEventHandler.onBlockBreak(event.getLevel(), event.getPos(), event.getPlayer());
-            if (!canBreak) {
-                event.setCanceled(true);
-            }
         }
     }
     
