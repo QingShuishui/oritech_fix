@@ -357,13 +357,13 @@ public class ItemPipeInterfaceEntity extends ExtractablePipeInterfaceEntity {
         // baogao
         for (var player : nearbyPlayers) {
             // xiaoxi
-            var warningMessage = Text.literal("§c§l检测到物品传输异常！?坐标: " +
+            var warningMessage = Text.literal("§c§l[MinePixel]检测到物品传输异常！?坐标: " +
                 violationPos.getX() + ", " + violationPos.getY() + ", " + violationPos.getZ());
 
             player.sendMessage(warningMessage, true); // true表示发送到ActionBar
 
             // backup
-            var chatMessage = Text.literal("§4本次已记录，禁止使用该BUG");
+            var chatMessage = Text.literal("§4[MinePixel]本次已记录，禁止使用该BUG");
 
             player.sendMessage(chatMessage, false); // false表示发送到聊天框
         }

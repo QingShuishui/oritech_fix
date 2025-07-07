@@ -11,6 +11,7 @@ import net.minecraft.component.type.ToolComponent;
 import net.minecraft.component.type.ToolComponent.Rule;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.attribute.EntityAttributeModifier;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.item.AxeItem;
@@ -31,6 +32,7 @@ import rearth.oritech.Oritech;
 import rearth.oritech.block.entity.interaction.TreefellerBlockEntity;
 import rearth.oritech.client.init.ParticleContent;
 import rearth.oritech.client.renderers.PromethiumToolRenderer;
+import rearth.oritech.util.ChunkProtectionHelper;
 import software.bernie.geckolib.animatable.GeoItem;
 import software.bernie.geckolib.animatable.client.GeoRenderProvider;
 import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
@@ -41,10 +43,14 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.UUID;
 
 public class PromethiumAxeItem extends AxeItem implements GeoItem {
-    
-    public static final Deque<Pair<World, BlockPos>> pendingBlocks = new ArrayDeque<>();
+
+    // 存储待破坏的方块信息：世界、方块位置、玩家UUID
+    public static final Deque<PendingBlockData> pendingBlocks = new ArrayDeque<>();
+
+    public record PendingBlockData(World world, BlockPos pos, UUID playerUuid) {}
     
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     
@@ -64,16 +70,19 @@ public class PromethiumAxeItem extends AxeItem implements GeoItem {
     
     @Override
     public boolean postMine(ItemStack stack, World world, BlockState state, BlockPos pos, LivingEntity miner) {
-        
-        if (!world.isClient && miner.isSneaking()) {
+
+        if (!world.isClient && miner.isSneaking() && miner instanceof PlayerEntity) {
+            PlayerEntity player = (PlayerEntity) miner;
             var startPos = pos.up();
             var startState = world.getBlockState(startPos);
             if (startState.isIn(BlockTags.LOGS)) {
                 var treeBlocks = TreefellerBlockEntity.getTreeBlocks(startPos, world);
-                pendingBlocks.addAll(treeBlocks.stream().map(elem -> new Pair<>(world, elem)).toList());
+                pendingBlocks.addAll(treeBlocks.stream()
+                    .map(blockPos -> new PendingBlockData(world, blockPos, player.getUuid()))
+                    .toList());
             }
         }
-        
+
         return true;
     }
     
@@ -86,25 +95,33 @@ public class PromethiumAxeItem extends AxeItem implements GeoItem {
     
     public static void processPendingBlocks(World world) {
         if (pendingBlocks.isEmpty()) return;
-        
-        var topWorld = pendingBlocks.getFirst().getLeft();
-        if (topWorld != world) return;
-        
+
+        var topData = pendingBlocks.getFirst();
+        if (topData.world() != world) return;
+
         for (int i = 0; i < 8 && !pendingBlocks.isEmpty(); i++) {
-            var candidate = pendingBlocks.pollFirst().getRight();
+            var blockData = pendingBlocks.pollFirst();
+            var candidate = blockData.pos();
             var candidateState = world.getBlockState(candidate);
             if (!candidateState.isIn(BlockTags.LOGS) && !candidateState.isIn(BlockTags.LEAVES)) return;
-            
+
+            // 检查区块保护权限
+            var player = world.getPlayerByUuid(blockData.playerUuid());
+            if (player != null && !ChunkProtectionHelper.canBreakBlock(world, candidate, player)) {
+                // 如果没有权限，跳过这个方块但继续处理其他方块
+                continue;
+            }
+
             var dropped = Block.getDroppedStacks(candidateState, (ServerWorld) world, candidate, null);
             world.setBlockState(candidate, Blocks.AIR.getDefaultState());
-            
+
             dropped.forEach(elem -> world.spawnEntity(new ItemEntity(world, candidate.getX(), candidate.getY(), candidate.getZ(), elem)));
-            
+
             world.playSound(null, candidate, candidateState.getSoundGroup().getBreakSound(), SoundCategory.BLOCKS, 0.5f, 1f);
             world.addBlockBreakParticles(candidate, candidateState);
-            
+
             ParticleContent.BLOCK_DESTROY_EFFECT.spawn(world, Vec3d.of(candidate), 4);
-            
+
             if (candidateState.isIn(BlockTags.LOGS)) break;
         }
         

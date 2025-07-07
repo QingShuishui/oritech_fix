@@ -23,6 +23,7 @@ import org.jetbrains.annotations.NotNull;
 import rearth.oritech.Oritech;
 import rearth.oritech.block.entity.interaction.TreefellerBlockEntity;
 import rearth.oritech.item.tools.util.OritechEnergyItem;
+import rearth.oritech.util.ChunkProtectionHelper;
 
 import java.util.List;
 
@@ -78,8 +79,10 @@ public class ChainsawItem extends AxeItem implements OritechEnergyItem {
             var startState = world.getBlockState(startPos);
             if (startState.isIn(BlockTags.LOGS)) {
                 var treeBlocks = TreefellerBlockEntity.getTreeBlocks(startPos, world);
-                PromethiumAxeItem.pendingBlocks.addAll(treeBlocks.stream().map(elem -> new Pair<>(world, elem)).toList());
-                
+                PromethiumAxeItem.pendingBlocks.addAll(treeBlocks.stream()
+                    .map(blockPos -> new PromethiumAxeItem.PendingBlockData(world, blockPos, player.getUuid()))
+                    .toList());
+
                 var extraEnergyUsed = treeBlocks.size() * energyUsageMultiplier / 2;
                 this.tryUseEnergy(stack, (long) extraEnergyUsed, player);
             }

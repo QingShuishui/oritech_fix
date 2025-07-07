@@ -25,22 +25,34 @@ public class DelegatingFluidStorage extends FluidApi.FluidStorage {
     
     @Override
     public long insert(FluidStack toInsert, boolean simulate) {
-        if (validPredicate.getAsBoolean())
-            return backingStorage.get().insert(toInsert, simulate);
+        if (validPredicate.getAsBoolean()) {
+            var storage = backingStorage.get();
+            if (storage != null) {
+                return storage.insert(toInsert, simulate);
+            }
+        }
         return 0;
     }
     
     @Override
     public long extract(FluidStack toExtract, boolean simulate) {
-        if (validPredicate.getAsBoolean())
-            return backingStorage.get().extract(toExtract, simulate);
+        if (validPredicate.getAsBoolean()) {
+            var storage = backingStorage.get();
+            if (storage != null) {
+                return storage.extract(toExtract, simulate);
+            }
+        }
         return 0;
     }
     
     @Override
     public List<FluidStack> getContent() {
-        if (validPredicate.getAsBoolean())
-            return backingStorage.get().getContent();
+        if (validPredicate.getAsBoolean()) {
+            var storage = backingStorage.get();
+            if (storage != null) {
+                return storage.getContent();
+            }
+        }
         return List.of();
     }
     
@@ -48,44 +60,59 @@ public class DelegatingFluidStorage extends FluidApi.FluidStorage {
         if (validPredicate.getAsBoolean()) {
             // extract all, then insert new stacks
             var targetStorage = backingStorage.get();
-            if (targetStorage instanceof FluidApi.SingleSlotStorage singleSlotContainer && content.size() == 1) {
-                singleSlotContainer.setStack(content.getFirst());
-            } else if (targetStorage instanceof FluidApi.InOutSlotStorage dualSlotContainer && content.size() == 2) {
-                dualSlotContainer.setInStack(content.getFirst());
-                dualSlotContainer.setOutStack(content.getLast());
-            } else {
-                Oritech.LOGGER.error("Using invalid container / snapshot for Delegating Fluid Storage");
+            if (targetStorage != null) {
+                if (targetStorage instanceof FluidApi.SingleSlotStorage singleSlotContainer && content.size() == 1) {
+                    singleSlotContainer.setStack(content.getFirst());
+                } else if (targetStorage instanceof FluidApi.InOutSlotStorage dualSlotContainer && content.size() == 2) {
+                    dualSlotContainer.setInStack(content.getFirst());
+                    dualSlotContainer.setOutStack(content.getLast());
+                } else {
+                    Oritech.LOGGER.error("Using invalid container / snapshot for Delegating Fluid Storage");
+                }
             }
         }
     }
     
     @Override
     public void update() {
-        if (validPredicate.getAsBoolean())
-            backingStorage.get().update();
+        if (validPredicate.getAsBoolean()) {
+            var storage = backingStorage.get();
+            if (storage != null) {
+                storage.update();
+            }
+        }
     }
     
     @Override
     public long getCapacity() {
-        if (validPredicate.getAsBoolean())
-            return backingStorage.get().getCapacity();
-        
+        if (validPredicate.getAsBoolean()) {
+            var storage = backingStorage.get();
+            if (storage != null) {
+                return storage.getCapacity();
+            }
+        }
         return 0;
     }
     
     @Override
     public boolean supportsInsertion() {
-        if (validPredicate.getAsBoolean())
-            return backingStorage.get().supportsInsertion();
-        
+        if (validPredicate.getAsBoolean()) {
+            var storage = backingStorage.get();
+            if (storage != null) {
+                return storage.supportsInsertion();
+            }
+        }
         return false;
     }
     
     @Override
     public boolean supportsExtraction() {
-        if (validPredicate.getAsBoolean())
-            return backingStorage.get().supportsExtraction();
-        
+        if (validPredicate.getAsBoolean()) {
+            var storage = backingStorage.get();
+            if (storage != null) {
+                return storage.supportsExtraction();
+            }
+        }
         return false;
     }
 }

@@ -55,6 +55,7 @@ import rearth.oritech.init.TagContent;
 import rearth.oritech.item.tools.util.OritechEnergyItem;
 import rearth.oritech.util.AutoPlayingSoundKeyframeHandler;
 import rearth.oritech.util.TooltipHelper;
+import rearth.oritech.util.ChunkProtectionHelper;
 import software.bernie.geckolib.animatable.GeoItem;
 import software.bernie.geckolib.animatable.SingletonGeoAnimatable;
 import software.bernie.geckolib.animatable.client.GeoRenderProvider;
@@ -227,9 +228,15 @@ public class PortableLaserItem extends Item implements OritechEnergyItem, GeoIte
     }
     
     private static void processBlockBreaking(BlockPos blockPos, BlockState blockState, World world, PlayerEntity player, ItemStack tool, int energyUsed) {
-        
+
         // skip unbreakable blocks
         if (blockState.getHardness(world, blockPos) < 0) return;
+
+        // 检查区块保护权限
+        if (!ChunkProtectionHelper.canBreakBlock(world, blockPos, player)) {
+            ChunkProtectionHelper.sendPermissionDeniedMessage(player, blockPos);
+            return;
+        }
         
         var stats = blockBreakStats.getOrDefault(player, new Pair<>(BlockPos.ORIGIN, 0));
         if (!blockPos.equals(stats.getLeft())) {

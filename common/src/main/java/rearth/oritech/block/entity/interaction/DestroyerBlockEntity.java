@@ -33,6 +33,7 @@ import rearth.oritech.init.BlockContent;
 import rearth.oritech.init.BlockEntitiesContent;
 import rearth.oritech.network.NetworkContent;
 import rearth.oritech.util.FakeMachinePlayer;
+import rearth.oritech.util.ChunkProtectionHelper;
 
 import java.util.List;
 import java.util.Objects;
@@ -122,6 +123,11 @@ public class DestroyerBlockEntity extends MultiblockFrameInteractionEntity {
             return false;
         }
 
+        // 检查区块保护权限
+        if (!ChunkProtectionHelper.canMachineBreakBlock(world, targetPosition, pos, "Destroyer")) {
+            return false;
+        }
+
         return !targetState.getBlock().equals(Blocks.AIR);
     }
 
@@ -192,6 +198,11 @@ public class DestroyerBlockEntity extends MultiblockFrameInteractionEntity {
         }
 
         if (!targetState.getBlock().equals(Blocks.AIR)) {
+
+            // 再次检查区块保护权限（双重保险）
+            if (!ChunkProtectionHelper.canMachineBreakBlock(world, targetPosition, pos, "Destroyer")) {
+                return;
+            }
 
             var targetEntity = world.getBlockEntity(targetPosition);
             List<ItemStack> dropped;

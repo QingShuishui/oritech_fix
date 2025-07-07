@@ -200,8 +200,14 @@ public class LaserArmBlockEntity extends BlockEntity implements
     }
     
     public void finishBlockBreaking(BlockPos targetPos, BlockState targetBlockState) {
+        // 检查区块保护权限
+        if (!ChunkProtectionHelper.canMachineBreakBlock(world, targetPos, pos, "Laser Arm")) {
+            findNextBlockBreakTarget();
+            return;
+        }
+
         progress -= targetBlockEnergyNeeded;
-        
+
         var targetEntity = world.getBlockEntity(targetPos);
         List<ItemStack> dropped;
         // added getLaserPlayerEntity() to make ae2 certus quartz drop from certus
@@ -509,6 +515,11 @@ public class LaserArmBlockEntity extends BlockEntity implements
         var distance = targetPos.getManhattanDistance(pos);
         var blockHardness = targetState.getBlock().getHardness();
         if (distance > range || blockHardness < 0.0 || targetState.getBlock().equals(Blocks.AIR)) {
+            return false;
+        }
+
+        // 检查区块保护权限
+        if (!ChunkProtectionHelper.canMachineBreakBlock(world, targetPos, pos, "Laser Arm")) {
             return false;
         }
         

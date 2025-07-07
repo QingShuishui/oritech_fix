@@ -23,30 +23,42 @@ public class DelegatingEnergyStorage extends EnergyApi.EnergyStorage {
     @Override
     public long getCapacity() {
         if (validPredicate.getAsBoolean()) {
-            return backingStorage.get().getCapacity();
+            var storage = backingStorage.get();
+            if (storage != null) {
+                return storage.getCapacity();
+            }
         }
         return 0;
     }
-    
+
     @Override
     public void update() {
         if (validPredicate.getAsBoolean()) {
-            backingStorage.get().update();
+            var storage = backingStorage.get();
+            if (storage != null) {
+                storage.update();
+            }
         }
     }
-    
+
     @Override
     public long insert(long amount, boolean simulate) {
         if (validPredicate.getAsBoolean()) {
-            return backingStorage.get().insert(amount, simulate);
+            var storage = backingStorage.get();
+            if (storage != null) {
+                return storage.insert(amount, simulate);
+            }
         }
         return 0;
     }
-    
+
     @Override
     public long extract(long amount, boolean simulate) {
         if (validPredicate.getAsBoolean()) {
-            return backingStorage.get().extract(amount, simulate);
+            var storage = backingStorage.get();
+            if (storage != null) {
+                return storage.extract(amount, simulate);
+            }
         }
         return 0;
     }
@@ -54,30 +66,42 @@ public class DelegatingEnergyStorage extends EnergyApi.EnergyStorage {
     @Override
     public boolean supportsInsertion() {
         if (validPredicate.getAsBoolean()) {
-            return backingStorage.get().supportsInsertion();
+            var storage = backingStorage.get();
+            if (storage != null) {
+                return storage.supportsInsertion();
+            }
         }
         return false;
     }
-    
+
     @Override
     public boolean supportsExtraction() {
         if (validPredicate.getAsBoolean()) {
-            return backingStorage.get().supportsExtraction();
+            var storage = backingStorage.get();
+            if (storage != null) {
+                return storage.supportsExtraction();
+            }
         }
         return false;
     }
-    
+
     @Override
     public void setAmount(long amount) {
         if (validPredicate.getAsBoolean()) {
-            backingStorage.get().setAmount(amount);
+            var storage = backingStorage.get();
+            if (storage != null) {
+                storage.setAmount(amount);
+            }
         }
     }
-    
+
     @Override
     public long getAmount() {
         if (validPredicate.getAsBoolean()) {
-            return backingStorage.get().getAmount();
+            var storage = backingStorage.get();
+            if (storage != null) {
+                return storage.getAmount();
+            }
         }
         return 0;
     }

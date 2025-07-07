@@ -28,6 +28,7 @@ import rearth.oritech.util.AutoPlayingSoundKeyframeHandler;
 import rearth.oritech.util.Geometry;
 import rearth.oritech.util.MultiblockMachineController;
 import rearth.oritech.util.SimpleCraftingInventory;
+import rearth.oritech.util.ChunkProtectionHelper;
 import software.bernie.geckolib.animatable.GeoBlockEntity;
 import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.animation.AnimatableManager;
@@ -135,6 +136,14 @@ public class DeepDrillEntity extends BlockEntity implements BlockEntityTicker<De
                     var target = center.add(x, y, z);
                     var targetState = world.getBlockState(target);
                     if (targetState.isIn(TagContent.RESOURCE_NODES)) {
+                        // 检查区块保护权限
+                        if (!ChunkProtectionHelper.canMachineBreakBlock(world, target, pos, "Deep Drill")) {
+                            if (manual) {
+                                Oritech.LOGGER.info("Deep Drill at {} cannot access resource node at {} due to chunk protection", pos, target);
+                            }
+                            break; // 跳过受保护的资源节点
+                        }
+
                         if (manual) ParticleContent.DEBUG_BLOCK.spawn(world, Vec3d.of(target));
                         targetedOre.add(targetState.getBlock());
                         break;

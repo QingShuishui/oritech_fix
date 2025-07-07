@@ -20,6 +20,7 @@ import net.minecraft.world.World;
 import rearth.oritech.block.blocks.reactor.NuclearExplosionBlock;
 import rearth.oritech.init.BlockEntitiesContent;
 import rearth.oritech.init.SoundContent;
+import rearth.oritech.util.ChunkProtectionHelper;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -157,11 +158,20 @@ public class NuclearExplosionEntity extends BlockEntity implements BlockEntityTi
             }
             
             if (replaced) {
+                // 检查区块保护权限
+                if (!ChunkProtectionHelper.canMachineBreakBlock(world, target, pos, "Nuclear Explosion")) {
+                    // 如果受保护，跳过这个方块的替换
+                    return;
+                }
+
                 world.setBlockState(target, replacementState, Block.SKIP_DROPS | Block.NOTIFY_LISTENERS, 1);
-                
+
                 // random fire chance
                 if (world.getBlockState(target.up()).isReplaceable() && world.random.nextFloat() > 0.97) {
-                    world.setBlockState(target.up(), Blocks.FIRE.getDefaultState(), Block.SKIP_DROPS | Block.NOTIFY_LISTENERS, 0);
+                    // 也检查火焰放置的权限
+                    if (ChunkProtectionHelper.canMachineBreakBlock(world, target.up(), pos, "Nuclear Explosion")) {
+                        world.setBlockState(target.up(), Blocks.FIRE.getDefaultState(), Block.SKIP_DROPS | Block.NOTIFY_LISTENERS, 0);
+                    }
                 }
             }
         });
@@ -211,12 +221,18 @@ public class NuclearExplosionEntity extends BlockEntity implements BlockEntityTi
             var targetHardness = targetBlock.getBlastResistance();
             
             if (targetBlock instanceof NuclearExplosionBlock || targetState.isAir() && !targetState.getFluidState().isStill()) continue;
-            
+
+            // 检查区块保护权限
+            if (!ChunkProtectionHelper.canMachineBreakBlock(world, target, pos, "Nuclear Explosion")) {
+                // 如果受保护，跳过这个方块但继续爆炸其他方块
+                continue;
+            }
+
             // skip too hard blocks (except for the first few)
             if (targetHardness > power && hardBusters-- < 0) continue;
-            
+
             usedPower += targetHardness;
-            
+
             // todo find all onBreak overrides in project and move to onBroken
             targetBlock.onBroken(world, pos, targetState);
             world.setBlockState(target, Blocks.AIR.getDefaultState(), Block.SKIP_DROPS | Block.NOTIFY_LISTENERS, 0);

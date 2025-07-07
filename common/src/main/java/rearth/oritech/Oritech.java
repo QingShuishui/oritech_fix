@@ -27,6 +27,7 @@ import rearth.oritech.network.NetworkContent;
 import rearth.oritech.util.registry.ArchitecturyBlockRegistryContainer;
 import rearth.oritech.util.registry.ArchitecturyRecipeRegistryContainer;
 import rearth.oritech.util.registry.ArchitecturyRegistryContainer;
+import rearth.oritech.event.ChunkProtectionEventHandler;
 
 public final class Oritech {
     
@@ -61,6 +62,10 @@ public final class Oritech {
         
         // for player augment ticks
         TickEvent.SERVER_PRE.register(event -> event.getWorlds().forEach(world -> world.getPlayers().forEach(PlayerAugments::serverTickAugments)));
+
+        // 初始化区块保护事件处理器
+        ChunkProtectionEventHandler.initialize();
+
         LOGGER.info("Oritech initialization complete");
     }
     

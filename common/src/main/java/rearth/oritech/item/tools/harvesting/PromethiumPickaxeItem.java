@@ -36,6 +36,7 @@ import net.minecraft.util.math.Direction;
 import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
 import rearth.oritech.Oritech;
+import rearth.oritech.util.ChunkProtectionHelper;
 import rearth.oritech.client.renderers.PromethiumToolRenderer;
 import rearth.oritech.init.ComponentContent;
 import rearth.oritech.init.TagContent;
@@ -159,6 +160,12 @@ public class PromethiumPickaxeItem extends MiningToolItem implements GeoItem {
         if (isAreaEnabled(handStack)) {
             // break additional blocks
             for (var offsetPos : getOffsetBlocks(world, player, pos)) {
+                // 检查区块保护权限
+                if (!ChunkProtectionHelper.canBreakBlock(world, offsetPos, player)) {
+                    ChunkProtectionHelper.sendPermissionDeniedMessage(player, offsetPos);
+                    continue;
+                }
+
                 // drop stacks before breaking additional block, because world.breakBlock doesn't apply item enchantments if drop is enabled
                 // this will ONLY apply item enchantments that affect block drops, and will not apply enchants like vein mining
                 var offsetState = world.getBlockState(offsetPos);

@@ -39,6 +39,7 @@ import rearth.oritech.util.AutoPlayingSoundKeyframeHandler;
 import rearth.oritech.util.Geometry;
 import rearth.oritech.util.InventoryInputMode;
 import rearth.oritech.util.ScreenProvider;
+import rearth.oritech.util.ChunkProtectionHelper;
 import software.bernie.geckolib.animatable.GeoBlockEntity;
 import software.bernie.geckolib.animatable.SingletonGeoAnimatable;
 import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
@@ -126,7 +127,12 @@ public class TreefellerBlockEntity extends BlockEntity implements BlockEntityTic
     
     private ActionResult breakTreeBlock(BlockState candidateState, BlockPos candidate) {
         if (!candidateState.isIn(TagContent.CUTTER_LOGS_MINEABLE) && !candidateState.isIn(TagContent.CUTTER_LEAVES_MINEABLE)) return ActionResult.PASS;
-        
+
+        // 检查区块保护权限
+        if (!ChunkProtectionHelper.canMachineBreakBlock(world, candidate, pos, "Treefeller")) {
+            return ActionResult.PASS; // 跳过受保护的方块
+        }
+
         var dropped = net.minecraft.block.Block.getDroppedStacks(candidateState, (ServerWorld) world, candidate, null);
         if (dropped.stream().anyMatch((itemStack) -> !(itemStack.isEmpty() || canInsert(itemStack)))) return ActionResult.FAIL;
 
